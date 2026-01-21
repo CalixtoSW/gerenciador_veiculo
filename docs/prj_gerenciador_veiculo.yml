@@ -1,0 +1,208 @@
+project:
+  name: "Projeto Gerenciador de Veículo"
+  description: "Django monolith (single HTTP service) with Templates MVP and React evolution."
+  stack:
+    backend:
+      framework: "Django 5.2+"
+      python: ">=3.12"
+      api_style: "JSON endpoints under /api"
+      auth:
+        mode: "session_cookie"
+        csrf: true
+    frontend:
+      framework: "React"
+      build_tool: "Vite"
+      served_by: "Django static + react.html template"
+    database:
+      primary: "SQLite"
+      usage_notes:
+        - "SQLite used for MVP; models/services must stay portable to Postgres later."
+  deployment:
+    single_http_service: true
+    static_serving:
+      dev: "Django serves /static"
+      prod: "Prefer Nginx/CDN for /static and /media; Django still serves react.html"
+
+conventions:
+  url_contracts:
+    prefixes:
+      api: "/api/"
+      admin: "/admin/"
+      static: "/static/"
+      media: "/media/"
+      health: "/health/"
+    invariants:
+      - "A route has one response type: HTML OR React shell OR JSON (never hybrid)."
+      - "APIs under /api never return HTML."
+      - "React does not depend on Django internal URLs; it consumes only /api."
+  layering:
+    rules:
+      - "views.py orchestrates only (HTTP in/out). No business logic."
+      - "services.py contains use-cases/business rules. No HTTP knowledge."
+      - "selectors.py contains read/query logic (ORM/raw SQL)."
+      - "api.py contains JSON endpoints (contract-focused)."
+      - "templates contain presentation only; no business decisions."
+    forbidden_patterns:
+      - "Views that switch between render() and JsonResponse based on headers/query."
+      - "API returning HTML fragments (render_to_string inside JSON)."
+      - "Injecting permissions/business state in window.* for React to enforce rules."
+      - "Templates containing authorization logic (hiding buttons != authorization)."
+
+repository_layout:
+  root:
+    - "backend/"
+    - "frontend/"
+    - "docs/"
+  backend:
+    folders:
+      - "backend/config/"
+      - "backend/apps/"
+      - "backend/templates/"
+      - "backend/static/"
+      - "backend/media/ (optional)"
+    apps_pattern:
+      app_folder: "backend/apps/<app_name>/"
+      files:
+        - "models.py"
+        - "services.py"
+        - "selectors.py"
+        - "views.py"
+        - "api.py"
+        - "urls.py"
+        - "tests/"
+        - "templates/<app_name>/"
+  frontend:
+    folders:
+      - "frontend/src/"
+      - "frontend/public/"
+      - "frontend/dist/ (generated)"
+    output_contract:
+      index_html: "frontend/dist/index.html"
+      assets_dir: "frontend/dist/assets/"
+
+react_integration:
+  mode: "single_service_single_domain"
+  react_shell:
+    django_template: "backend/templates/react.html"
+    mount_hint: "React mounts on a root div (#root or #app)."
+  routing:
+    strategy: "React SPA with Django catch-all (excluding /api, /admin, /static, /media, /health)"
+    catch_all_notes:
+      - "Catch-all must not swallow API/admin/static/media/health paths."
+      - "Prefer serving React from /app/ to reduce collisions; / may redirect to /app/."
+  build_pipeline:
+    steps:
+      - "cd frontend && npm ci"
+      - "cd frontend && npm run build"
+      - "copy frontend/dist/index.html -> backend/templates/react.generated.html"
+      - "copy frontend/dist/assets -> backend/static/assets"
+      - "backend: collectstatic in production"
+  allowed_html_injection:
+    - "csrfToken (if needed for cookie auth)"
+    - "buildId/version"
+    - "environment"
+  forbidden_html_injection:
+    - "permissions matrix"
+    - "business rules"
+    - "sensitive user attributes beyond non-sensitive identifiers"
+
+django_templates_mvp:
+  scope:
+    allowed_pages:
+      - "login/logout"
+      - "error pages (404/500)"
+      - "admin/backoffice (optional)"
+      - "MVP screens until React cutover"
+    migration_plan:
+      - "Every HTML view must have a service-backed DTO that can be returned as JSON later."
+  template_rules:
+    allowed:
+      - "simple loops and empty-state rendering"
+      - "formatting only"
+    forbidden:
+      - "authorization decisions"
+      - "domain calculations (totals, thresholds, status derivations)"
+      - "query execution or lazy evaluation pitfalls"
+
+data_access:
+  orm_policy:
+    allowed_for:
+      - "transactional domain models"
+      - "simple reads"
+    avoid_for:
+      - "heavy analytic queries"
+      - "DW-like aggregations without strategy"
+  analytics_policy:
+    selectors:
+      allowed_methods:
+        - "raw SQL encapsulated in selectors.py"
+        - "views/materialized views"
+      must_have:
+        - "pagination for lists"
+        - "mandatory filters for expensive endpoints"
+        - "query timeouts where possible"
+  performance_guardrails:
+    must_check:
+      - "N+1 queries (select_related/prefetch_related)"
+      - "pagination always"
+      - "indexes for common filters"
+      - "no full-table scans in request path (unless proven safe)"
+
+security:
+  authz:
+    rule: "Authorization always enforced server-side in services/views; UI never trusted."
+  csrf:
+    enabled: true
+  headers:
+    recommended:
+      - "X-Frame-Options / frame-ancestors"
+      - "Content-Security-Policy (when feasible)"
+      - "Secure cookies in prod"
+  exposure_audit:
+    required:
+      - "list all URLs and classify by response type (HTML/ReactShell/JSON/Static)"
+      - "verify catch-all exclusions"
+      - "verify /api returns application/json only"
+
+testing:
+  backend:
+    minimum:
+      - "unit tests for services.py"
+      - "integration tests for api.py (status + payload)"
+      - "smoke tests for views.py (status + template)"
+  frontend:
+    when_enabled:
+      - "component tests for critical UI"
+      - "e2e smoke for key flows"
+  quality_gates:
+    - "No hybrid endpoints"
+    - "No HTML in /api"
+    - "DTO-only to templates"
+    - "Pagination in list endpoints"
+
+operational:
+  local_dev:
+    backend:
+      run: "python manage.py runserver"
+    frontend:
+      run: "npm run dev"
+    note:
+      - "Local dev may use separate dev server for React, but production serves React via Django."
+  production:
+    steps:
+      - "Build React"
+      - "Copy artifacts into backend"
+      - "collectstatic"
+      - "Run Django via gunicorn/uvicorn"
+      - "Serve static via Nginx/CDN (recommended)"
+  healthchecks:
+    endpoints:
+      - "/health/ (simple OK + dependencies optional)"
+
+governance:
+  pr_checklist_required: true
+  adr_required_for:
+    - "auth strategy"
+    - "react routing strategy (/ vs /app)"
+    - "analytics query strategy (ORM vs raw SQL vs materialized views)"
+    - "deployment topology changes"
