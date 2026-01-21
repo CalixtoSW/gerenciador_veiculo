@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { getVehicle, listFuelingsFiltered, vehicleMetricsFiltered } from "../api.js";
+import { getVehicle, listFuelingsByUrl, listFuelingsFiltered, vehicleMetricsFiltered } from "../api.js";
 
 function pad2(value) {
   return String(value).padStart(2, "0");
@@ -36,6 +36,7 @@ export default function VehicleOverviewPage() {
   const [metrics, setMetrics] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const today = useMemo(() => toLocalDateString(new Date()), []);
   const [filters, setFilters] = useState({ startDate: "", endDate: "" });
@@ -88,6 +89,21 @@ export default function VehicleOverviewPage() {
   function clearFilters() {
     setFilters({ startDate: "", endDate: "" });
     setApplied({ startDate: "", endDate: "" });
+  }
+
+  async function loadMore() {
+    if (!fuelingsMeta.next || loadingMore) return;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const next = await listFuelingsByUrl(fuelingsMeta.next);
+      setFuelings((prev) => [...prev, ...next.items]);
+      setFuelingsMeta((prev) => ({ ...prev, next: next.next, previous: next.previous, count: next.count ?? prev.count }));
+    } catch (err) {
+      setError(String(err.message || err));
+    } finally {
+      setLoadingMore(false);
+    }
   }
 
   return (
@@ -156,26 +172,35 @@ export default function VehicleOverviewPage() {
             ) : fuelings.length === 0 ? (
               <p className="muted">Nenhum abastecimento encontrado para o filtro.</p>
             ) : (
-              <div className="scrollList">
-                <ul className="list">
-                  {fuelings.map((f) => (
-                    <li className="listItem" key={f.id}>
-                      <div>
-                        <div className="strong">
-                          {new Date(f.occurred_at).toLocaleString()} • {f.odometer_km} km
+              <>
+                <div className="scrollList">
+                  <ul className="list">
+                    {fuelings.map((f) => (
+                      <li className="listItem" key={f.id}>
+                        <div>
+                          <div className="strong">
+                            {new Date(f.occurred_at).toLocaleString()} • {f.odometer_km} km
+                          </div>
+                          <div className="muted">
+                            {f.liters} L • R$ {f.total_cost} • R$/L {f.price_per_liter} • {f.fuel_type}{" "}
+                            {f.is_full_tank ? "• tanque cheio" : ""}
+                          </div>
                         </div>
-                        <div className="muted">
-                          {f.liters} L • R$ {f.total_cost} • R$/L {f.price_per_liter} • {f.fuel_type}{" "}
-                          {f.is_full_tank ? "• tanque cheio" : ""}
-                        </div>
-                      </div>
-                      <Link className="button secondary" to={`/vehicles/${vehicleId}/fuelings/${f.id}/edit`}>
-                        Editar
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                        <Link className="button secondary" to={`/vehicles/${vehicleId}/fuelings/${f.id}/edit`}>
+                          Editar
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {fuelingsMeta.next ? (
+                  <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+                    <button className="button secondary" type="button" onClick={loadMore} disabled={loadingMore}>
+                      {loadingMore ? "Carregando…" : "Carregar mais"}
+                    </button>
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
 
@@ -216,4 +241,3 @@ export default function VehicleOverviewPage() {
     </div>
   );
 }
-

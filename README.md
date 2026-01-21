@@ -19,11 +19,10 @@ Monólito Django (API JSON em `/api`) servindo um SPA React (Vite) no mesmo dom�
 ### Backend
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r backend/requirements.txt
-python backend/manage.py migrate
-python backend/manage.py runserver
+python3 -m venv .venv
+.venv/bin/pip install -r backend/requirements.txt
+.venv/bin/python backend/manage.py migrate
+.venv/bin/python backend/manage.py runserver 0.0.0.0:8000
 ```
 
 ### Frontend
@@ -33,8 +32,11 @@ cd frontend
 npm install
 npm run build
 cd ..
-python backend/manage.py runserver
+.venv/bin/python backend/manage.py runserver 0.0.0.0:8000
 ```
 
 O React é servido pelo Django em `/app/` (SPA com catch-all).
 
+## Documentação
+
+Índice: `docs/README.md`

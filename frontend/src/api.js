@@ -87,6 +87,11 @@ export async function listFuelingsFiltered(vehicleId, { start, end } = {}) {
   return { items: data.results ?? data, next: data.next ?? null, previous: data.previous ?? null, count: data.count ?? null };
 }
 
+export async function listFuelingsByUrl(url) {
+  const data = await request(url);
+  return { items: data.results ?? data, next: data.next ?? null, previous: data.previous ?? null, count: data.count ?? null };
+}
+
 export async function createFueling(payload) {
   return request("/api/fuelings/", { method: "POST", body: payload });
 }
