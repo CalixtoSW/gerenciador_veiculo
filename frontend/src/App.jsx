@@ -4,7 +4,8 @@ import { ensureCsrf, getMe, logout } from "./api.js";
 import LoginPage from "./pages/Login.jsx";
 import RegisterPage from "./pages/Register.jsx";
 import VehiclesPage from "./pages/Vehicles.jsx";
-import VehicleDetailPage from "./pages/VehicleDetail.jsx";
+import VehicleOverviewPage from "./pages/VehicleOverview.jsx";
+import FuelingFormPage from "./pages/FuelingForm.jsx";
 
 export default function App() {
   const [me, setMe] = useState(null);
@@ -75,9 +76,14 @@ export default function App() {
         <Route path="/register" element={<RegisterPage onAuthed={setMe} />} />
 
         <Route path="/vehicles" element={authed ? <VehiclesPage /> : <Navigate to="/login" replace />} />
+        <Route path="/vehicles/:id" element={authed ? <VehicleOverviewPage /> : <Navigate to="/login" replace />} />
         <Route
-          path="/vehicles/:id"
-          element={authed ? <VehicleDetailPage /> : <Navigate to="/login" replace />}
+          path="/vehicles/:id/fuelings/new"
+          element={authed ? <FuelingFormPage mode="new" /> : <Navigate to="/login" replace />}
+        />
+        <Route
+          path="/vehicles/:id/fuelings/:fuelingId/edit"
+          element={authed ? <FuelingFormPage mode="edit" /> : <Navigate to="/login" replace />}
         />
 
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -85,4 +91,3 @@ export default function App() {
     </div>
   );
 }
-

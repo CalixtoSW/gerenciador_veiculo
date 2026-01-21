@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
+
+from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -93,9 +97,31 @@ class FuelingViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         vehicle_id = self.request.query_params.get("vehicle")
+        start = self.request.query_params.get("start")
+        end = self.request.query_params.get("end")
         qs = Fueling.objects.filter(owner=self.request.user).select_related("vehicle")
         if vehicle_id:
             qs = qs.filter(vehicle_id=vehicle_id)
+        if start:
+            dt = parse_datetime(start)
+            if dt is None:
+                d = parse_date(start)
+                if d is not None:
+                    dt = datetime.combine(d, datetime.min.time())
+            if dt is not None and timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+            if dt is not None:
+                qs = qs.filter(occurred_at__gte=dt)
+        if end:
+            dt = parse_datetime(end)
+            if dt is None:
+                d = parse_date(end)
+                if d is not None:
+                    dt = datetime.combine(d, datetime.max.time())
+            if dt is not None and timezone.is_naive(dt):
+                dt = timezone.make_aware(dt, timezone.get_current_timezone())
+            if dt is not None:
+                qs = qs.filter(occurred_at__lte=dt)
         return qs.order_by("-occurred_at", "-id")
 
     def perform_create(self, serializer):
@@ -178,7 +204,22 @@ class MetricsQuerySerializer(serializers.Serializer):
         start = attrs.get("start")
         end = attrs.get("end")
         parsed_start = parse_datetime(start) if start else None
+        if parsed_start is None and start:
+            d = parse_date(start)
+            if d is not None:
+                parsed_start = timezone.make_aware(datetime.combine(d, datetime.min.time()), timezone.get_current_timezone())
+
         parsed_end = parse_datetime(end) if end else None
+        if parsed_end is None and end:
+            d = parse_date(end)
+            if d is not None:
+                parsed_end = timezone.make_aware(datetime.combine(d, datetime.max.time()), timezone.get_current_timezone())
+
+        if parsed_start is not None and timezone.is_naive(parsed_start):
+            parsed_start = timezone.make_aware(parsed_start, timezone.get_current_timezone())
+        if parsed_end is not None and timezone.is_naive(parsed_end):
+            parsed_end = timezone.make_aware(parsed_end, timezone.get_current_timezone())
+
         attrs["start_dt"] = parsed_start
         attrs["end_dt"] = parsed_end
         return attrs
