@@ -45,7 +45,7 @@ class VehicleSerializer(serializers.ModelSerializer):
 
 class FuelingSerializer(serializers.ModelSerializer):
     price_per_liter = serializers.SerializerMethodField()
-    occurred_at = serializers.DateTimeField(required=False, allow_null=True)
+    occurred_at = serializers.DateTimeField(required=False)
 
     class Meta:
         model = Fueling

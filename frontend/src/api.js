@@ -61,6 +61,10 @@ export async function listVehicles() {
   return data.results ?? data;
 }
 
+export async function getVehicle(vehicleId) {
+  return request(`/api/vehicles/${encodeURIComponent(vehicleId)}/`);
+}
+
 export async function createVehicle(payload) {
   return request("/api/vehicles/", { method: "POST", body: payload });
 }
@@ -74,7 +78,10 @@ export async function createFueling(payload) {
   return request("/api/fuelings/", { method: "POST", body: payload });
 }
 
+export async function updateFueling(fuelingId, payload) {
+  return request(`/api/fuelings/${encodeURIComponent(fuelingId)}/`, { method: "PATCH", body: payload });
+}
+
 export async function vehicleMetrics(vehicleId) {
   return request(`/api/vehicles/${encodeURIComponent(vehicleId)}/metrics/`);
 }
-
