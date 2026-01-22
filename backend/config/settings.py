@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "dev-secret-key-change-me"
+SECRET_KEY = os.environ.get("SECRET_KEY")
 DEBUG = True
-ALLOWED_HOSTS: list[str] = ["*"]
+ALLOWED_HOSTS: list[str] = ["127.0.0.1", ".vercel.app", ".now.sh"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -48,7 +49,8 @@ TEMPLATES = [
     }
 ]
 
-WSGI_APPLICATION = "config.wsgi.application"
+#WSGI_APPLICATION = "config.wsgi.application"
+WSGI_APPLICATION = "config.wsgi.app"
 
 DATABASES = {
     "default": {
