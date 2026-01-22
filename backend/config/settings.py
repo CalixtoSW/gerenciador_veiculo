@@ -74,13 +74,32 @@ if DATABASE_URL:
         )
     }
 else:
-    sqlite_name = os.environ.get("SQLITE_PATH") or ("/tmp/db.sqlite3" if IS_VERCEL else str(BASE_DIR / "db.sqlite3"))
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": sqlite_name,
+    pg_user = os.environ.get("PGUSER")
+    pg_password = os.environ.get("PGPASSWORD")
+    pg_host = os.environ.get("PGHOST")
+    pg_database = os.environ.get("PGDATABASE")
+    pg_port = os.environ.get("PGPORT", "5432")
+    pg_sslmode = os.environ.get("PGSSLMODE", "require")
+
+    if pg_user and pg_password and pg_host and pg_database:
+        import dj_database_url
+
+        # Support Postgres via standard PG* env vars (common on PaaS).
+        DATABASES = {
+            "default": dj_database_url.parse(
+                f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}?sslmode={pg_sslmode}",
+                conn_max_age=600,
+                ssl_require=IS_VERCEL,
+            )
         }
-    }
+    else:
+        sqlite_name = os.environ.get("SQLITE_PATH") or ("/tmp/db.sqlite3" if IS_VERCEL else str(BASE_DIR / "db.sqlite3"))
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": sqlite_name,
+            }
+        }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
