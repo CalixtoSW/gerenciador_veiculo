@@ -20,4 +20,8 @@ pip install -r requirements.txt
 # Ensure Django can run during build even if SECRET_KEY isn't configured yet.
 export SECRET_KEY="${SECRET_KEY:-build-only-secret-key}"
 
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  python backend/manage.py migrate --noinput
+fi
+
 python backend/manage.py collectstatic --noinput

@@ -62,12 +62,25 @@ TEMPLATES = [
 #WSGI_APPLICATION = "config.wsgi.application"
 WSGI_APPLICATION = "config.wsgi.app"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    import dj_database_url
+
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=IS_VERCEL,
+        )
     }
-}
+else:
+    sqlite_name = os.environ.get("SQLITE_PATH") or ("/tmp/db.sqlite3" if IS_VERCEL else str(BASE_DIR / "db.sqlite3"))
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": sqlite_name,
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

@@ -42,6 +42,7 @@ O React é servido pelo Django em `/app/` (SPA com catch-all).
 ## Deploy (Vercel)
 
 - Defina a variável de ambiente `SECRET_KEY` no projeto (Production/Preview).
+- Para dados persistentes, configure `DATABASE_URL` (Postgres). Sem isso, a Vercel usa SQLite em `/tmp` (volátil, perde dados entre execuções).
 - O build roda `collectstatic` via `build_files.sh` e publica os estáticos em `backend/staticfiles`.
 
 ## Documentação
