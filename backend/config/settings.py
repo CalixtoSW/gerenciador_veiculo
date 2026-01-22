@@ -3,10 +3,20 @@ from __future__ import annotations
 from pathlib import Path
 import os
 
+from django.core.exceptions import ImproperlyConfigured
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+IS_VERCEL = os.environ.get("VERCEL") == "1"
+DEBUG = os.environ.get("DEBUG", "0" if IS_VERCEL else "1") == "1"
+
 SECRET_KEY = os.environ.get("SECRET_KEY")
-DEBUG = True
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "dev-insecure-secret-key"
+    else:
+        raise ImproperlyConfigured("SECRET_KEY environment variable is required")
+
 ALLOWED_HOSTS: list[str] = ["127.0.0.1", ".vercel.app", ".now.sh"]
 
 INSTALLED_APPS = [
@@ -77,6 +87,9 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

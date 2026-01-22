@@ -25,6 +25,8 @@ python3 -m venv .venv
 .venv/bin/python backend/manage.py runserver 0.0.0.0:8000
 ```
 
+Por padrão `DEBUG=1` localmente. Se quiser simular produção, defina `DEBUG=0` e `SECRET_KEY` no ambiente.
+
 ### Frontend
 
 ```bash
@@ -36,6 +38,11 @@ cd ..
 ```
 
 O React é servido pelo Django em `/app/` (SPA com catch-all).
+
+## Deploy (Vercel)
+
+- Defina a variável de ambiente `SECRET_KEY` no projeto (Production/Preview).
+- O build roda `collectstatic` via `build_files.sh` e publica os estáticos em `backend/staticfiles`.
 
 ## Documentação
 
