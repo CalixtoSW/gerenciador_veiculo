@@ -22,7 +22,15 @@ async function request(path, { method = "GET", body } = {}) {
   const contentType = resp.headers.get("content-type") || "";
   const data = contentType.includes("application/json") ? await resp.json() : await resp.text();
   if (!resp.ok) {
-    const detail = data?.detail || data || "request_failed";
+    let detail = data?.detail || data || "request_failed";
+    if (detail && typeof detail === "object") {
+      detail = Object.entries(detail)
+        .map(([key, value]) => {
+          const message = Array.isArray(value) ? value.join(", ") : String(value);
+          return `${key}: ${message}`;
+        })
+        .join("; ");
+    }
     throw new Error(detail);
   }
   return data;

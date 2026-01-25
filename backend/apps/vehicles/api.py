@@ -192,7 +192,10 @@ def logout_view(request):
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def me_view(request):
+    if not request.user.is_authenticated:
+        return Response(status=status.HTTP_204_NO_CONTENT)
     return Response(UserSerializer(request.user).data, status=status.HTTP_200_OK)
 
 

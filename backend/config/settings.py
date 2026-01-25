@@ -17,7 +17,7 @@ if not SECRET_KEY:
     else:
         raise ImproperlyConfigured("SECRET_KEY environment variable is required")
 
-ALLOWED_HOSTS: list[str] = ["127.0.0.1", ".vercel.app", ".now.sh"]
+ALLOWED_HOSTS: list[str] = ["127.0.0.1", "localhost", ".vercel.app", ".now.sh"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
