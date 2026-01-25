@@ -49,9 +49,29 @@ class Vehicle(TimestampedModel):
         return self.nickname or f"{self.brand} {self.model}".strip()
 
 
+class Station(TimestampedModel):
+    name = models.CharField(max_length=120)
+    brand = models.CharField(max_length=80, blank=True)
+    address = models.CharField(max_length=200, blank=True)
+    city = models.CharField(max_length=80)
+    state = models.CharField(max_length=2)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["name"]),
+            models.Index(fields=["city", "state"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.city}/{self.state})"
+
+
 class Fueling(TimestampedModel):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="fuelings")
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="fuelings")
+    station = models.ForeignKey(Station, on_delete=models.SET_NULL, null=True, blank=True, related_name="fuelings")
 
     occurred_at = models.DateTimeField()
     odometer_km = models.PositiveIntegerField()

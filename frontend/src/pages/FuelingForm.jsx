@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { createFueling, getFueling, getVehicle, updateFueling } from "../api.js";
+import {
+  createFueling,
+  createStation,
+  getFueling,
+  getStation,
+  getVehicle,
+  listStations,
+  updateFueling
+} from "../api.js";
 
 function pad2(value) {
   return String(value).padStart(2, "0");
@@ -43,6 +51,14 @@ export default function FuelingFormPage({ mode }) {
     station_name: "",
     notes: ""
   });
+  const [stationId, setStationId] = useState(null);
+  const [stationCity, setStationCity] = useState("");
+  const [stationState, setStationState] = useState("");
+  const [stationBrand, setStationBrand] = useState("");
+  const [stationAddress, setStationAddress] = useState("");
+  const [stationLatitude, setStationLatitude] = useState("");
+  const [stationLongitude, setStationLongitude] = useState("");
+  const [stationMatches, setStationMatches] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -69,6 +85,7 @@ export default function FuelingFormPage({ mode }) {
             station_name: f.station_name ?? "",
             notes: f.notes ?? ""
           });
+          setStationId(f.station ?? null);
         } else {
           setForm((prev) => ({
             ...prev,
@@ -91,14 +108,80 @@ export default function FuelingFormPage({ mode }) {
   const vehicleTitle = vehicle ? vehicle.nickname || `${vehicle.brand} ${vehicle.model}` : `Veículo #${vehicleId}`;
   const title = mode === "edit" ? "Editar abastecimento" : "Novo abastecimento";
 
+  useEffect(() => {
+    if (!form.station_name || stationId) {
+      setStationMatches([]);
+      return;
+    }
+    let active = true;
+    const handle = setTimeout(async () => {
+      try {
+        const items = await listStations(form.station_name);
+        if (!active) return;
+        setStationMatches(items.slice(0, 8));
+      } catch {
+        if (!active) return;
+        setStationMatches([]);
+      }
+    }, 200);
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [form.station_name, stationId]);
+
+  useEffect(() => {
+    if (!stationId) return;
+    let active = true;
+    (async () => {
+      try {
+        const station = await getStation(stationId);
+        if (!active) return;
+        setStationCity(station.city || "");
+        setStationState(station.state || "");
+        setStationBrand(station.brand || "");
+        setStationAddress(station.address || "");
+        setStationLatitude(station.latitude ? String(station.latitude) : "");
+        setStationLongitude(station.longitude ? String(station.longitude) : "");
+      } catch {
+        if (!active) return;
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [stationId]);
+
   async function submit(e) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
+      let resolvedStationId = stationId;
+      if (!resolvedStationId && form.station_name.trim()) {
+        if (!stationCity.trim() || !stationState.trim()) {
+          setError("Informe cidade e UF para cadastrar o posto.");
+          setBusy(false);
+          return;
+        }
+        const latitude = stationLatitude.trim() ? Number(stationLatitude) : null;
+        const longitude = stationLongitude.trim() ? Number(stationLongitude) : null;
+        const created = await createStation({
+          name: form.station_name.trim(),
+          brand: stationBrand.trim(),
+          address: stationAddress.trim(),
+          city: stationCity.trim(),
+          state: stationState.trim().toUpperCase(),
+          latitude: Number.isNaN(latitude) ? null : latitude,
+          longitude: Number.isNaN(longitude) ? null : longitude
+        });
+        resolvedStationId = created.id;
+        setStationId(created.id);
+      }
       const occurredAtIso = new Date(form.occurred_at).toISOString();
       const payload = {
         vehicle: vehicleId,
+        station: resolvedStationId,
         occurred_at: occurredAtIso,
         odometer_km: Number(form.odometer_km),
         fuel_type: form.fuel_type,
@@ -187,8 +270,88 @@ export default function FuelingFormPage({ mode }) {
         </label>
         <label>
           Posto (opcional)
-          <input value={form.station_name} onChange={(e) => setForm({ ...form, station_name: e.target.value })} />
+          <input
+            value={form.station_name}
+            onChange={(e) => {
+              setStationId(null);
+              setForm({ ...form, station_name: e.target.value });
+            }}
+            placeholder="Digite para buscar ou criar"
+          />
         </label>
+        {stationMatches.length ? (
+          <div className="muted" style={{ marginTop: -8 }}>
+            {stationMatches.map((station) => (
+              <button
+                key={station.id}
+                type="button"
+                className="button secondary"
+                style={{ marginRight: 8, marginTop: 6 }}
+                onClick={() => {
+                  setStationId(station.id);
+                  setForm((prev) => ({ ...prev, station_name: station.name }));
+                  setStationCity(station.city || "");
+                  setStationState(station.state || "");
+                  setStationBrand(station.brand || "");
+                  setStationAddress(station.address || "");
+                  setStationLatitude(station.latitude ? String(station.latitude) : "");
+                  setStationLongitude(station.longitude ? String(station.longitude) : "");
+                  setStationMatches([]);
+                }}
+              >
+                {station.name} ({station.city}/{station.state})
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {stationId ? (
+          <div className="muted" style={{ marginTop: -4 }}>
+            {stationCity && stationState ? `Selecionado: ${stationCity}/${stationState}` : "Posto selecionado"}
+            <button
+              type="button"
+              className="button secondary"
+              style={{ marginLeft: 8 }}
+              onClick={() => {
+                setStationId(null);
+                setStationCity("");
+                setStationState("");
+                setStationBrand("");
+                setStationAddress("");
+                setStationLatitude("");
+                setStationLongitude("");
+              }}
+            >
+              Usar outro
+            </button>
+          </div>
+        ) : form.station_name.trim() ? (
+          <>
+            <label>
+              Cidade
+              <input value={stationCity} onChange={(e) => setStationCity(e.target.value)} />
+            </label>
+            <label>
+              UF
+              <input value={stationState} onChange={(e) => setStationState(e.target.value)} maxLength={2} />
+            </label>
+            <label>
+              Bandeira (opcional)
+              <input value={stationBrand} onChange={(e) => setStationBrand(e.target.value)} />
+            </label>
+            <label>
+              EndereÃ§o (opcional)
+              <input value={stationAddress} onChange={(e) => setStationAddress(e.target.value)} />
+            </label>
+            <label>
+              Latitude (opcional)
+              <input value={stationLatitude} onChange={(e) => setStationLatitude(e.target.value)} />
+            </label>
+            <label>
+              Longitude (opcional)
+              <input value={stationLongitude} onChange={(e) => setStationLongitude(e.target.value)} />
+            </label>
+          </>
+        ) : null}
         <label>
           Observações (opcional)
           <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />

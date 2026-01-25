@@ -119,3 +119,38 @@ export async function vehicleMetricsFiltered(vehicleId, { start, end } = {}) {
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return request(`/api/vehicles/${encodeURIComponent(vehicleId)}/metrics/${suffix}`);
 }
+
+export async function listStations(query) {
+  const qs = new URLSearchParams();
+  if (query) qs.set("q", query);
+  const data = await request(`/api/stations/?${qs.toString()}`);
+  return data.results ?? data;
+}
+
+export async function createStation(payload) {
+  return request("/api/stations/", { method: "POST", body: payload });
+}
+
+export async function getStation(stationId) {
+  return request(`/api/stations/${encodeURIComponent(stationId)}/`);
+}
+
+export async function updateStation(stationId, payload) {
+  return request(`/api/stations/${encodeURIComponent(stationId)}/`, { method: "PATCH", body: payload });
+}
+
+export async function stationMetrics(stationId, { start, end } = {}) {
+  const qs = new URLSearchParams();
+  if (start) qs.set("start", start);
+  if (end) qs.set("end", end);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return request(`/api/stations/${encodeURIComponent(stationId)}/metrics/${suffix}`);
+}
+
+export async function stationsMetrics({ start, end } = {}) {
+  const qs = new URLSearchParams();
+  if (start) qs.set("start", start);
+  if (end) qs.set("end", end);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return request(`/api/stations/metrics/${suffix}`);
+}

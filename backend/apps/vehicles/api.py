@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
+from django.db.models import Count, DecimalField, ExpressionWrapper, Q, Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -13,7 +14,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .models import FuelType, Fueling, Vehicle
+from .models import FuelType, Fueling, Station, Vehicle
 from .selectors import fuelings_between, vehicles_for_user
 from .services import (
     auth_login,
@@ -28,6 +29,21 @@ from .services import (
 class UserSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     username = serializers.CharField()
+
+
+class StationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Station
+        fields = [
+            "id",
+            "name",
+            "brand",
+            "address",
+            "city",
+            "state",
+            "latitude",
+            "longitude",
+        ]
 
 
 class VehicleSerializer(serializers.ModelSerializer):
@@ -50,12 +66,14 @@ class VehicleSerializer(serializers.ModelSerializer):
 class FuelingSerializer(serializers.ModelSerializer):
     price_per_liter = serializers.SerializerMethodField()
     occurred_at = serializers.DateTimeField(required=False)
+    station = serializers.PrimaryKeyRelatedField(queryset=Station.objects.all(), required=False, allow_null=True)
 
     class Meta:
         model = Fueling
         fields = [
             "id",
             "vehicle",
+            "station",
             "occurred_at",
             "odometer_km",
             "fuel_type",
@@ -126,6 +144,7 @@ class FuelingViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         vehicle = serializer.validated_data["vehicle"]
+        station = serializer.validated_data.get("station")
         fueling = create_fueling(
             user=self.request.user,
             vehicle_id=vehicle.id,
@@ -135,10 +154,28 @@ class FuelingViewSet(viewsets.ModelViewSet):
             liters=serializer.validated_data["liters"],
             total_cost=serializer.validated_data["total_cost"],
             is_full_tank=serializer.validated_data.get("is_full_tank", True),
+            station_id=station.id if station else None,
             station_name=serializer.validated_data.get("station_name", ""),
             notes=serializer.validated_data.get("notes", ""),
         )
         serializer.instance = fueling
+
+
+class StationViewSet(viewsets.ModelViewSet):
+    serializer_class = StationSerializer
+    queryset = Station.objects.all()
+
+    def get_queryset(self):
+        qs = Station.objects.all()
+        query = self.request.query_params.get("q")
+        if query:
+            qs = qs.filter(
+                Q(name__icontains=query)
+                | Q(city__icontains=query)
+                | Q(state__icontains=query)
+                | Q(brand__icontains=query)
+            )
+        return qs.order_by("name", "city", "state")
 
 
 class AuthRegisterSerializer(serializers.Serializer):
@@ -228,6 +265,14 @@ class MetricsQuerySerializer(serializers.Serializer):
         return attrs
 
 
+def _filter_by_period(qs, *, start, end):
+    if start is not None:
+        qs = qs.filter(occurred_at__gte=start)
+    if end is not None:
+        qs = qs.filter(occurred_at__lte=end)
+    return qs
+
+
 @api_view(["GET"])
 def vehicle_metrics_view(request, vehicle_id: int):
     if not Vehicle.objects.filter(owner=request.user, id=vehicle_id).exists():
@@ -271,3 +316,72 @@ def vehicle_metrics_view(request, vehicle_id: int):
         },
         status=status.HTTP_200_OK,
     )
+
+
+@api_view(["GET"])
+def station_metrics_view(request, station_id: int):
+    if not Station.objects.filter(id=station_id).exists():
+        return Response({"detail": "not_found"}, status=status.HTTP_404_NOT_FOUND)
+
+    query = MetricsQuerySerializer(data=request.query_params)
+    query.is_valid(raise_exception=True)
+    fuelings = Fueling.objects.filter(owner=request.user, station_id=station_id)
+    fuelings = _filter_by_period(fuelings, start=query.validated_data["start_dt"], end=query.validated_data["end_dt"])
+
+    total_cost = fuelings.aggregate(total=Sum("total_cost"))["total"] or Decimal("0")
+    total_liters = fuelings.aggregate(total=Sum("liters"))["total"] or Decimal("0")
+    fuelings_count = fuelings.aggregate(total=Count("id"))["total"] or 0
+
+    avg_price_per_liter = None
+    if total_liters > 0 and total_cost > 0:
+        avg_price_per_liter = str((total_cost / total_liters).quantize(Decimal("0.0001")))
+
+    return Response(
+        {
+            "station_id": station_id,
+            "fuelings_count": fuelings_count,
+            "total_liters": str(total_liters),
+            "total_cost": str(total_cost),
+            "avg_price_per_liter": avg_price_per_liter,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["GET"])
+def stations_metrics_view(request):
+    query = MetricsQuerySerializer(data=request.query_params)
+    query.is_valid(raise_exception=True)
+    fuelings = Fueling.objects.filter(owner=request.user, station__isnull=False)
+    fuelings = _filter_by_period(fuelings, start=query.validated_data["start_dt"], end=query.validated_data["end_dt"])
+
+    total_cost = Sum("total_cost")
+    total_liters = Sum("liters")
+    avg_expr = ExpressionWrapper(
+        total_cost / total_liters,
+        output_field=DecimalField(max_digits=10, decimal_places=4),
+    )
+
+    rows = (
+        fuelings.values("station_id", "station__name", "station__brand", "station__city", "station__state")
+        .annotate(total_cost=total_cost, total_liters=total_liters, fuelings_count=Count("id"), avg_price_per_liter=avg_expr)
+        .filter(total_liters__gt=0)
+        .order_by("avg_price_per_liter", "station__name")
+    )
+
+    data = [
+        {
+            "station_id": row["station_id"],
+            "name": row["station__name"],
+            "brand": row["station__brand"],
+            "city": row["station__city"],
+            "state": row["station__state"],
+            "fuelings_count": row["fuelings_count"],
+            "total_liters": str(row["total_liters"] or Decimal("0")),
+            "total_cost": str(row["total_cost"] or Decimal("0")),
+            "avg_price_per_liter": str(row["avg_price_per_liter"]) if row["avg_price_per_liter"] is not None else None,
+        }
+        for row in rows
+    ]
+
+    return Response(data, status=status.HTTP_200_OK)

@@ -9,7 +9,7 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.db import transaction
 from django.utils import timezone
 
-from .models import FuelType, Fueling, Vehicle
+from .models import FuelType, Fueling, Station, Vehicle
 from .selectors import vehicle_for_user
 
 
@@ -76,15 +76,22 @@ def create_fueling(
     liters: Decimal,
     total_cost: Decimal,
     is_full_tank: bool = True,
+    station_id: int | None = None,
     station_name: str = "",
     notes: str = "",
 ) -> Fueling:
     vehicle = vehicle_for_user(user=user, vehicle_id=vehicle_id)
     if occurred_at is None:
         occurred_at = timezone.now()
+    station = None
+    if station_id is not None:
+        station = Station.objects.filter(id=station_id).first()
+    if not station_name and station:
+        station_name = station.name
     return Fueling.objects.create(
         owner=user,
         vehicle=vehicle,
+        station=station,
         occurred_at=occurred_at,
         odometer_km=odometer_km,
         fuel_type=fuel_type,

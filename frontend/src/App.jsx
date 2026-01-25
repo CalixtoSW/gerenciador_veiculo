@@ -6,6 +6,7 @@ import RegisterPage from "./pages/Register.jsx";
 import VehiclesPage from "./pages/Vehicles.jsx";
 import VehicleOverviewPage from "./pages/VehicleOverview.jsx";
 import FuelingFormPage from "./pages/FuelingForm.jsx";
+import StationsPage from "./pages/Stations.jsx";
 
 export default function App() {
   const [me, setMe] = useState(null);
@@ -52,6 +53,9 @@ export default function App() {
         <div className="headerRight">
           {authed ? (
             <>
+              <Link className="button secondary" to="/stations">
+                Postos
+              </Link>
               <span className="muted">Olá, {me.username}</span>
               <button className="button" onClick={handleLogout}>
                 Sair
@@ -77,6 +81,7 @@ export default function App() {
 
         <Route path="/vehicles" element={authed ? <VehiclesPage /> : <Navigate to="/login" replace />} />
         <Route path="/vehicles/:id" element={authed ? <VehicleOverviewPage /> : <Navigate to="/login" replace />} />
+        <Route path="/stations" element={authed ? <StationsPage /> : <Navigate to="/login" replace />} />
         <Route
           path="/vehicles/:id/fuelings/new"
           element={authed ? <FuelingFormPage mode="new" /> : <Navigate to="/login" replace />}
