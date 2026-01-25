@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from django.db.models import Count, DecimalField, ExpressionWrapper, Q, Sum
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -355,16 +355,19 @@ def stations_metrics_view(request):
     fuelings = Fueling.objects.filter(owner=request.user, station__isnull=False)
     fuelings = _filter_by_period(fuelings, start=query.validated_data["start_dt"], end=query.validated_data["end_dt"])
 
-    total_cost = Sum("total_cost")
-    total_liters = Sum("liters")
-    avg_expr = ExpressionWrapper(
-        total_cost / total_liters,
-        output_field=DecimalField(max_digits=10, decimal_places=4),
-    )
-
     rows = (
         fuelings.values("station_id", "station__name", "station__brand", "station__city", "station__state")
-        .annotate(total_cost=total_cost, total_liters=total_liters, fuelings_count=Count("id"), avg_price_per_liter=avg_expr)
+        .annotate(
+            total_cost=Sum("total_cost"),
+            total_liters=Sum("liters"),
+            fuelings_count=Count("id"),
+        )
+        .annotate(
+            avg_price_per_liter=ExpressionWrapper(
+                F("total_cost") / F("total_liters"),
+                output_field=DecimalField(max_digits=10, decimal_places=4),
+            )
+        )
         .filter(total_liters__gt=0)
         .order_by("avg_price_per_liter", "station__name")
     )
