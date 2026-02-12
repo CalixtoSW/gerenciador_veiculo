@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .api import (
     FuelingViewSet,
+    StationBrandViewSet,
     StationViewSet,
     VehicleViewSet,
     csrf_view,
@@ -19,6 +20,7 @@ router = DefaultRouter()
 router.register(r"vehicles", VehicleViewSet, basename="vehicle")
 router.register(r"fuelings", FuelingViewSet, basename="fueling")
 router.register(r"stations", StationViewSet, basename="station")
+router.register(r"station-brands", StationBrandViewSet, basename="station-brand")
 
 urlpatterns = [
     path("auth/csrf/", csrf_view, name="auth-csrf"),

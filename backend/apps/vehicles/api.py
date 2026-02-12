@@ -14,7 +14,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .models import FuelType, Fueling, Station, Vehicle
+from .models import FuelType, Fueling, Station, StationBrand, Vehicle
+from .utils import format_decimal
 from .selectors import fuelings_between, vehicles_for_user
 from .services import (
     auth_login,
@@ -32,18 +33,45 @@ class UserSerializer(serializers.Serializer):
 
 
 class StationSerializer(serializers.ModelSerializer):
+    brand = serializers.PrimaryKeyRelatedField(queryset=StationBrand.objects.all(), required=False, allow_null=True)
+    brand_name = serializers.CharField(required=False, allow_blank=True)
+
     class Meta:
         model = Station
         fields = [
             "id",
             "name",
             "brand",
+            "brand_name",
             "address",
             "city",
             "state",
             "latitude",
             "longitude",
         ]
+
+    def validate(self, attrs):
+        brand_name = attrs.get("brand_name")
+        brand = attrs.get("brand")
+        if brand is None and brand_name is not None:
+            clean_name = brand_name.strip()
+            if clean_name:
+                brand, _ = StationBrand.objects.get_or_create(name=clean_name)
+                attrs["brand"] = brand
+            else:
+                attrs["brand"] = None
+        return attrs
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["brand_name"] = instance.brand.name if instance.brand else ""
+        return data
+
+
+class StationBrandSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StationBrand
+        fields = ["id", "name"]
 
 
 class VehicleSerializer(serializers.ModelSerializer):
@@ -96,7 +124,13 @@ class FuelingSerializer(serializers.ModelSerializer):
         return value
 
     def get_price_per_liter(self, obj: Fueling) -> str:
-        return str(obj.price_per_liter)
+        return format_decimal(obj.price_per_liter, places=3) or "0"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["liters"] = format_decimal(data.get("liters"), places=3)
+        data["total_cost"] = format_decimal(data.get("total_cost"), places=3)
+        return data
 
 
 class VehicleViewSet(viewsets.ModelViewSet):
@@ -173,9 +207,21 @@ class StationViewSet(viewsets.ModelViewSet):
                 Q(name__icontains=query)
                 | Q(city__icontains=query)
                 | Q(state__icontains=query)
-                | Q(brand__icontains=query)
+                | Q(brand__name__icontains=query)
             )
         return qs.order_by("name", "city", "state")
+
+
+class StationBrandViewSet(viewsets.ModelViewSet):
+    serializer_class = StationBrandSerializer
+    queryset = StationBrand.objects.all()
+
+    def get_queryset(self):
+        qs = StationBrand.objects.all()
+        query = self.request.query_params.get("q")
+        if query:
+            qs = qs.filter(name__icontains=query)
+        return qs.order_by("name")
 
 
 class AuthRegisterSerializer(serializers.Serializer):
@@ -292,26 +338,26 @@ def vehicle_metrics_view(request, vehicle_id: int):
 
     cost_per_km = None
     if metrics.total_km > 0 and metrics.total_cost > 0:
-        cost_per_km = str((metrics.total_cost / metrics.total_km).quantize(Decimal("0.0001")))
+        cost_per_km = format_decimal(metrics.total_cost / metrics.total_km, places=3)
 
     avg_cost_per_liter = None
     if metrics.total_liters > 0 and metrics.total_cost > 0:
-        avg_cost_per_liter = str((metrics.total_cost / metrics.total_liters).quantize(Decimal("0.0001")))
+        avg_cost_per_liter = format_decimal(metrics.total_cost / metrics.total_liters, places=3)
 
     return Response(
         {
             "vehicle_id": vehicle_id,
-            "km_per_liter_avg": str(metrics.km_per_liter_avg) if metrics.km_per_liter_avg is not None else None,
+            "km_per_liter_avg": format_decimal(metrics.km_per_liter_avg, places=3) if metrics.km_per_liter_avg is not None else None,
             "liters_per_100km_avg": (
-                str((Decimal("100") / metrics.km_per_liter_avg).quantize(Decimal("0.01")))
+                format_decimal(Decimal("100") / metrics.km_per_liter_avg, places=3)
                 if metrics.km_per_liter_avg
                 else None
             ),
             "avg_cost_per_liter": avg_cost_per_liter,
             "avg_cost_per_km": cost_per_km,
             "total_km": metrics.total_km,
-            "total_liters": str(metrics.total_liters),
-            "total_cost": str(metrics.total_cost),
+            "total_liters": format_decimal(metrics.total_liters, places=3),
+            "total_cost": format_decimal(metrics.total_cost, places=3),
             "intervals_count": metrics.intervals_count,
         },
         status=status.HTTP_200_OK,
@@ -334,14 +380,14 @@ def station_metrics_view(request, station_id: int):
 
     avg_price_per_liter = None
     if total_liters > 0 and total_cost > 0:
-        avg_price_per_liter = str((total_cost / total_liters).quantize(Decimal("0.0001")))
+        avg_price_per_liter = format_decimal(total_cost / total_liters, places=3)
 
     return Response(
         {
             "station_id": station_id,
             "fuelings_count": fuelings_count,
-            "total_liters": str(total_liters),
-            "total_cost": str(total_cost),
+            "total_liters": format_decimal(total_liters, places=3),
+            "total_cost": format_decimal(total_cost, places=3),
             "avg_price_per_liter": avg_price_per_liter,
         },
         status=status.HTTP_200_OK,
@@ -356,7 +402,7 @@ def stations_metrics_view(request):
     fuelings = _filter_by_period(fuelings, start=query.validated_data["start_dt"], end=query.validated_data["end_dt"])
 
     rows = (
-        fuelings.values("station_id", "station__name", "station__brand", "station__city", "station__state")
+        fuelings.values("station_id", "station__name", "station__brand__name", "station__city", "station__state")
         .annotate(
             total_cost=Sum("total_cost"),
             total_liters=Sum("liters"),
@@ -365,7 +411,7 @@ def stations_metrics_view(request):
         .annotate(
             avg_price_per_liter=ExpressionWrapper(
                 F("total_cost") / F("total_liters"),
-                output_field=DecimalField(max_digits=10, decimal_places=4),
+                output_field=DecimalField(max_digits=10, decimal_places=3),
             )
         )
         .filter(total_liters__gt=0)
@@ -376,13 +422,13 @@ def stations_metrics_view(request):
         {
             "station_id": row["station_id"],
             "name": row["station__name"],
-            "brand": row["station__brand"],
+            "brand": row["station__brand__name"],
             "city": row["station__city"],
             "state": row["station__state"],
             "fuelings_count": row["fuelings_count"],
-            "total_liters": str(row["total_liters"] or Decimal("0")),
-            "total_cost": str(row["total_cost"] or Decimal("0")),
-            "avg_price_per_liter": str(row["avg_price_per_liter"]) if row["avg_price_per_liter"] is not None else None,
+            "total_liters": format_decimal(row["total_liters"] or Decimal("0"), places=3),
+            "total_cost": format_decimal(row["total_cost"] or Decimal("0"), places=3),
+            "avg_price_per_liter": format_decimal(row["avg_price_per_liter"], places=3) if row["avg_price_per_liter"] is not None else None,
         }
         for row in rows
     ]

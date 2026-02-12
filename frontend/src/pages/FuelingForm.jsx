@@ -9,6 +9,7 @@ import {
   listStations,
   updateFueling
 } from "../api.js";
+import { formatDecimalInput, normalizeDecimalInput } from "../utils/format.js";
 
 function pad2(value) {
   return String(value).padStart(2, "0");
@@ -79,8 +80,8 @@ export default function FuelingFormPage({ mode }) {
             occurred_at: toDateTimeLocalValue(f.occurred_at),
             odometer_km: String(f.odometer_km ?? ""),
             fuel_type: f.fuel_type ?? v.fuel_type ?? "gasolina",
-            liters: String(f.liters ?? ""),
-            total_cost: String(f.total_cost ?? ""),
+            liters: formatDecimalInput(f.liters ?? ""),
+            total_cost: formatDecimalInput(f.total_cost ?? ""),
             is_full_tank: Boolean(f.is_full_tank),
             station_name: f.station_name ?? "",
             notes: f.notes ?? ""
@@ -139,7 +140,7 @@ export default function FuelingFormPage({ mode }) {
         if (!active) return;
         setStationCity(station.city || "");
         setStationState(station.state || "");
-        setStationBrand(station.brand || "");
+        setStationBrand(station.brand_name || "");
         setStationAddress(station.address || "");
         setStationLatitude(station.latitude ? String(station.latitude) : "");
         setStationLongitude(station.longitude ? String(station.longitude) : "");
@@ -168,7 +169,7 @@ export default function FuelingFormPage({ mode }) {
         const longitude = stationLongitude.trim() ? Number(stationLongitude) : null;
         const created = await createStation({
           name: form.station_name.trim(),
-          brand: stationBrand.trim(),
+          brand_name: stationBrand.trim(),
           address: stationAddress.trim(),
           city: stationCity.trim(),
           state: stationState.trim().toUpperCase(),
@@ -185,8 +186,8 @@ export default function FuelingFormPage({ mode }) {
         occurred_at: occurredAtIso,
         odometer_km: Number(form.odometer_km),
         fuel_type: form.fuel_type,
-        liters: String(form.liters),
-        total_cost: String(form.total_cost),
+        liters: formatDecimalInput(form.liters),
+        total_cost: formatDecimalInput(form.total_cost),
         is_full_tank: Boolean(form.is_full_tank),
         station_name: form.station_name,
         notes: form.notes
@@ -254,11 +255,23 @@ export default function FuelingFormPage({ mode }) {
         </label>
         <label>
           Litros
-          <input value={form.liters} onChange={(e) => setForm({ ...form, liters: e.target.value })} required />
+          <input
+            value={form.liters}
+            onChange={(e) => setForm({ ...form, liters: normalizeDecimalInput(e.target.value) })}
+            onBlur={(e) => setForm({ ...form, liters: formatDecimalInput(e.target.value) })}
+            required
+            inputMode="decimal"
+          />
         </label>
         <label>
           Total pago (R$)
-          <input value={form.total_cost} onChange={(e) => setForm({ ...form, total_cost: e.target.value })} required />
+          <input
+            value={form.total_cost}
+            onChange={(e) => setForm({ ...form, total_cost: normalizeDecimalInput(e.target.value) })}
+            onBlur={(e) => setForm({ ...form, total_cost: formatDecimalInput(e.target.value) })}
+            required
+            inputMode="decimal"
+          />
         </label>
         <label className="checkbox">
           <input
@@ -292,7 +305,7 @@ export default function FuelingFormPage({ mode }) {
                   setForm((prev) => ({ ...prev, station_name: station.name }));
                   setStationCity(station.city || "");
                   setStationState(station.state || "");
-                  setStationBrand(station.brand || "");
+                  setStationBrand(station.brand_name || "");
                   setStationAddress(station.address || "");
                   setStationLatitude(station.latitude ? String(station.latitude) : "");
                   setStationLongitude(station.longitude ? String(station.longitude) : "");

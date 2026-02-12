@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { createStation, listStations, stationsMetrics, updateStation } from "../api.js";
+import { createStation, listStationBrands, listStations, stationsMetrics, updateStation } from "../api.js";
+import { formatCurrencyBR, formatDecimal } from "../utils/format.js";
 
 function toIsoStart(date) {
   if (!date) return null;
@@ -23,6 +24,7 @@ export default function StationsPage() {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [brandCustom, setBrandCustom] = useState(false);
+  const [brandOptions, setBrandOptions] = useState([]);
 
   const [metrics, setMetrics] = useState([]);
   const [metricsError, setMetricsError] = useState(null);
@@ -57,12 +59,21 @@ export default function StationsPage() {
     };
   }, [search]);
 
-  const brandOptions = useMemo(() => {
-    const brands = stations
-      .map((station) => (station.brand || "").trim())
-      .filter((brand) => brand.length > 0);
-    return Array.from(new Set(brands)).sort((a, b) => a.localeCompare(b));
-  }, [stations]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await listStationBrands();
+        if (!active) return;
+        setBrandOptions(data.map((row) => row.name));
+      } catch {
+        if (!active) return;
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredStations = useMemo(() => {
     if (!stateFilter) return stations;
@@ -119,7 +130,7 @@ export default function StationsPage() {
       const longitude = form.longitude.trim() ? Number(form.longitude) : null;
       const payload = {
         name: form.name.trim(),
-        brand: form.brand.trim(),
+        brand_name: form.brand.trim(),
         address: form.address.trim(),
         city: form.city.trim(),
         state: form.state.trim().toUpperCase(),
@@ -134,6 +145,8 @@ export default function StationsPage() {
         saved = await createStation(payload);
         setStations((items) => [saved, ...items]);
       }
+      const brands = await listStationBrands();
+      setBrandOptions(brands.map((row) => row.name));
       resetForm();
     } catch (err) {
       setError(String(err.message || err));
@@ -144,7 +157,7 @@ export default function StationsPage() {
 
   function startEdit(station) {
     setEditingId(station.id);
-    const stationBrand = station.brand || "";
+    const stationBrand = station.brand_name || "";
     setBrandCustom(Boolean(stationBrand && !brandOptions.includes(stationBrand)));
     setForm({
       name: station.name || "",
@@ -192,7 +205,7 @@ export default function StationsPage() {
                 <div>
                   <div className="strong stationsTitle">
                     {s.name}
-                    {s.brand ? <span className="brandBadge">{s.brand}</span> : null}
+                    {s.brand_name ? <span className="brandBadge">{s.brand_name}</span> : null}
                   </div>
                   <div className="muted">
                     {s.city}/{s.state} {s.address ? `• ${s.address}` : ""}
@@ -341,7 +354,7 @@ export default function StationsPage() {
                     {row.name} {row.brand ? `- ${row.brand}` : ""}
                   </div>
                   <div className="muted">
-                    {row.city}/{row.state} • R$/L {row.avg_price_per_liter ?? "—"} • {row.fuelings_count} abastecimentos
+                    {row.city}/{row.state} • {formatCurrencyBR(row.avg_price_per_liter)} /L • {row.fuelings_count} abastecimentos
                   </div>
                 </div>
               </li>

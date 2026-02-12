@@ -131,6 +131,13 @@ export async function createStation(payload) {
   return request("/api/stations/", { method: "POST", body: payload });
 }
 
+export async function listStationBrands(query) {
+  const qs = new URLSearchParams();
+  if (query) qs.set("q", query);
+  const data = await request(`/api/station-brands/?${qs.toString()}`);
+  return data.results ?? data;
+}
+
 export async function getStation(stationId) {
   return request(`/api/stations/${encodeURIComponent(stationId)}/`);
 }

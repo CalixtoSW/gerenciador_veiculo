@@ -5,6 +5,8 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 
+from .utils import quantize_decimal
+
 
 class TimestampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -51,7 +53,7 @@ class Vehicle(TimestampedModel):
 
 class Station(TimestampedModel):
     name = models.CharField(max_length=120)
-    brand = models.CharField(max_length=80, blank=True)
+    brand = models.ForeignKey("StationBrand", on_delete=models.SET_NULL, null=True, blank=True, related_name="stations")
     address = models.CharField(max_length=200, blank=True)
     city = models.CharField(max_length=80)
     state = models.CharField(max_length=2)
@@ -68,6 +70,17 @@ class Station(TimestampedModel):
         return f"{self.name} ({self.city}/{self.state})"
 
 
+class StationBrand(TimestampedModel):
+    name = models.CharField(max_length=80, unique=True)
+
+    class Meta:
+        verbose_name = "Station brand"
+        verbose_name_plural = "Station brands"
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Fueling(TimestampedModel):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="fuelings")
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="fuelings")
@@ -78,7 +91,7 @@ class Fueling(TimestampedModel):
 
     fuel_type = models.CharField(max_length=16, choices=FuelType.choices)
     liters = models.DecimalField(max_digits=8, decimal_places=3)
-    total_cost = models.DecimalField(max_digits=10, decimal_places=2)
+    total_cost = models.DecimalField(max_digits=10, decimal_places=3)
     is_full_tank = models.BooleanField(default=True)
 
     station_name = models.CharField(max_length=120, blank=True)
@@ -98,7 +111,7 @@ class Fueling(TimestampedModel):
     @property
     def price_per_liter(self) -> Decimal:
         if self.liters:
-            return (self.total_cost / self.liters).quantize(Decimal("0.0001"))
+            return quantize_decimal(self.total_cost / self.liters, places=3) or Decimal("0")
         return Decimal("0")
 
     def __str__(self) -> str:

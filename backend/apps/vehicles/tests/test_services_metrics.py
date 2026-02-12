@@ -56,9 +56,9 @@ class ComputeConsumptionMetricsTests(TestCase):
         )
 
         metrics = compute_consumption_metrics(fuelings_asc=[f1, f2])
-        self.assertEqual(metrics.km_per_liter_avg, Decimal("14.00"))
+        self.assertEqual(metrics.km_per_liter_avg, Decimal("14.000"))
         self.assertEqual(metrics.total_km, 350)
-        self.assertEqual(metrics.total_liters, Decimal("25.0"))
+        self.assertEqual(metrics.total_liters, Decimal("25.000"))
 
     def _create_user(self, username: str):
         from django.contrib.auth.models import User

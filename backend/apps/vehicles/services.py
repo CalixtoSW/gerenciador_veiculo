@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import FuelType, Fueling, Station, Vehicle
+from .utils import quantize_decimal
 from .selectors import vehicle_for_user
 
 
@@ -95,8 +96,8 @@ def create_fueling(
         occurred_at=occurred_at,
         odometer_km=odometer_km,
         fuel_type=fuel_type,
-        liters=liters,
-        total_cost=total_cost,
+        liters=quantize_decimal(liters, places=3) or liters,
+        total_cost=quantize_decimal(total_cost, places=3) or total_cost,
         is_full_tank=is_full_tank,
         station_name=station_name,
         notes=notes,
@@ -117,8 +118,8 @@ def compute_consumption_metrics(
         return ConsumptionMetrics(
             km_per_liter_avg=None,
             total_km=total_km,
-            total_liters=total_liters,
-            total_cost=total_cost,
+            total_liters=quantize_decimal(total_liters, places=3) or total_liters,
+            total_cost=quantize_decimal(total_cost, places=3) or total_cost,
             intervals_count=0,
         )
 
@@ -146,13 +147,13 @@ def compute_consumption_metrics(
 
     km_per_liter_avg = None
     if total_liters > 0 and total_km > 0:
-        km_per_liter_avg = (Decimal(total_km) / total_liters).quantize(Decimal("0.01"))
+        km_per_liter_avg = quantize_decimal(Decimal(total_km) / total_liters, places=3)
 
     return ConsumptionMetrics(
         km_per_liter_avg=km_per_liter_avg,
         total_km=total_km,
-        total_liters=total_liters,
-        total_cost=total_cost.quantize(Decimal("0.01")),
+        total_liters=quantize_decimal(total_liters, places=3) or total_liters,
+        total_cost=quantize_decimal(total_cost, places=3) or total_cost,
         intervals_count=intervals_count,
     )
 

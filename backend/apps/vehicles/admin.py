@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Fueling, Station, Vehicle
+from .models import Fueling, Station, StationBrand, Vehicle
 
 
 @admin.register(Vehicle)
@@ -30,5 +30,11 @@ class FuelingAdmin(admin.ModelAdmin):
 @admin.register(Station)
 class StationAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "brand", "city", "state", "updated_at")
-    search_fields = ("name", "brand", "city", "state")
+    search_fields = ("name", "brand__name", "city", "state")
+
+
+@admin.register(StationBrand)
+class StationBrandAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "updated_at")
+    search_fields = ("name",)
 

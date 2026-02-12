@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { getVehicle, listFuelingsByUrl, listFuelingsFiltered, vehicleMetricsFiltered } from "../api.js";
+import { formatCurrencyBR, formatDecimal } from "../utils/format.js";
 
 function pad2(value) {
   return String(value).padStart(2, "0");
@@ -182,7 +183,7 @@ export default function VehicleOverviewPage() {
                             {new Date(f.occurred_at).toLocaleString()} • {f.odometer_km} km
                           </div>
                           <div className="muted">
-                            {f.liters} L • R$ {f.total_cost} • R$/L {f.price_per_liter} • {f.fuel_type}{" "}
+                            {formatDecimal(f.liters)} L • {formatCurrencyBR(f.total_cost)} • {formatCurrencyBR(f.price_per_liter)} /L • {f.fuel_type}{" "}
                             {f.is_full_tank ? "• tanque cheio" : ""}
                           </div>
                         </div>
@@ -213,19 +214,19 @@ export default function VehicleOverviewPage() {
                 <div className="metrics">
                   <div className="metric">
                     <div className="muted">Média (km/L)</div>
-                    <div className="strong">{metrics.km_per_liter_avg ?? "—"}</div>
+                    <div className="strong">{formatDecimal(metrics.km_per_liter_avg)}</div>
                   </div>
                   <div className="metric">
                     <div className="muted">L/100km</div>
-                    <div className="strong">{metrics.liters_per_100km_avg ?? "—"}</div>
+                    <div className="strong">{formatDecimal(metrics.liters_per_100km_avg)}</div>
                   </div>
                   <div className="metric">
-                    <div className="muted">Custo/km</div>
-                    <div className="strong">{metrics.avg_cost_per_km ?? "—"}</div>
+                  <div className="muted">Custo/km</div>
+                    <div className="strong">{formatCurrencyBR(metrics.avg_cost_per_km)}</div>
                   </div>
                   <div className="metric">
-                    <div className="muted">Custo/L</div>
-                    <div className="strong">{metrics.avg_cost_per_liter ?? "—"}</div>
+                  <div className="muted">Custo/L</div>
+                    <div className="strong">{formatCurrencyBR(metrics.avg_cost_per_liter)}</div>
                   </div>
                 </div>
                 <div className="muted" style={{ fontSize: 13 }}>
